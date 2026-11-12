@@ -4,10 +4,11 @@ API de um cofre pessoal de credenciais. O Klyro centraliza logins de serviços
 por usuário, protege as senhas armazenadas com criptografia autenticada e
 aplica isolamento de acesso em todas as operações individuais do cofre.
 
-O projeto está em desenvolvimento. A base atual cobre cadastro, autenticação,
+O projeto está em desenvolvimento. A base atual cobre o ciclo completo de
+autenticação com access token, refresh token rotacionável e logout, além de
 perfil, inativação de conta e criação, listagem, revelação e exclusão de
-credenciais. Ainda não deve ser considerada pronta para produção sem os ajustes
-descritos em [Limitações e próximos passos](#limitações-e-próximos-passos).
+credenciais. Ainda não deve ser considerada pronta para produção sem os
+ajustes descritos em [Limitações e próximos passos](#limitações-e-próximos-passos).
 
 ## Problema e funcionalidades atuais
 
@@ -15,6 +16,7 @@ O Klyro evita que credenciais de diferentes serviços sejam mantidas em texto
 puro ou misturadas entre usuários. Atualmente, a API permite:
 
 - cadastrar e autenticar usuários;
+- renovar sessões com rotação de refresh token e revogar sessões no logout;
 - consultar o perfil autenticado;
 - inativar a própria conta;
 - impedir novos logins de contas inativas;
@@ -22,7 +24,9 @@ puro ou misturadas entre usuários. Atualmente, a API permite:
 - listar somente os metadados públicos das próprias credenciais;
 - revelar a senha de uma credencial específica, após validar o proprietário;
 - excluir uma credencial do proprietário de forma atômica;
-- limitar requisições globalmente e padronizar erros de validação e negócio.
+- limitar requisições globalmente e padronizar erros de validação e negócio;
+- executar regras de negócio com repositórios Prisma em produção e repositórios
+  em memória nos testes.
 
 ## Stack
 
@@ -47,7 +51,7 @@ persistência e factories fazem a composição das implementações concretas.
 
 ```mermaid
 flowchart LR
-    Client[Cliente HTTP] --> Routes[Rotas e middleware JWT]
+    Client[Cliente HTTP] --> Routes[Rotas, JWT e cookies]
     Routes --> Controllers[Controllers e validação Zod]
     Controllers --> Factories[Factories]
     Factories --> UseCases[Casos de uso]
@@ -200,6 +204,10 @@ sessão, cada refresh rotaciona o token em transação e a reutilização de um 
 substituído revoga toda a família. O token bruto fica apenas em cookie
 `HttpOnly`, `SameSite=Strict`, limitado a `/token`; `Secure` é habilitado em
 produção. Consulte [docs/refresh-tokens.md](docs/refresh-tokens.md).
+
+O logout é idempotente: remove o cookie mesmo quando o refresh token está
+ausente ou inválido. Quando o token é válido, a sessão correspondente é
+revogada no banco.
 
 ## Requisitos
 
@@ -380,6 +388,17 @@ escopo `/token`.
 
 Credenciais inválidas retornam `401`. Uma conta inativa com senha válida
 retorna `403` com `Usuário inativado`.
+
+Fluxo recomendado para clientes:
+
+1. enviar as credenciais para `/authenticate`;
+2. guardar o access token somente em memória e enviá-lo como Bearer token;
+3. deixar o cookie HTTP-only ser gerenciado pelo cliente HTTP;
+4. chamar `/token/refresh` quando o access token expirar;
+5. chamar `/token/logout` ao encerrar a sessão.
+
+O access token não é enviado em cookie e não deve ser persistido em
+`localStorage` quando houver uma alternativa mais segura.
 
 ### Renovação de tokens
 
