@@ -14,7 +14,7 @@ export async function deleteCredential(
   const deleteCredentialUseCase = makeDeleteCredentialUseCase();
   await deleteCredentialUseCase.execute({
     credentialId: id,
-    userId: request.user.sub,
+    userId: request.user.id,
   });
 
   return reply.status(204).send();

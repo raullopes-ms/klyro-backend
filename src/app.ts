@@ -1,16 +1,31 @@
 import fastify from "fastify";
-import fastifyCookie from "@fastify/cookie";
 import { fastifyRateLimit } from "@fastify/rate-limit";
 import { ZodError, z } from "zod";
 import { env } from "./env";
 import { AppError } from "./use-cases/errors/app-error";
 import { usersRoutes } from "./http/controllers/users/routes";
 import { vaultsRoutes } from "./http/controllers/vaults/routes";
-import { registerAuthTokenPlugins } from "./lib/auth-tokens";
+import { fromNodeHeaders } from "better-auth/node";
+import { auth } from "./lib/auth";
 
 export const app = fastify();
-app.register(fastifyCookie);
-registerAuthTokenPlugins(app);
+app.route({
+  method: ["GET", "POST"],
+  url: "/api/auth/*",
+  async handler(request, reply) {
+    const url = new URL(request.url, env.BETTER_AUTH_URL);
+    const headers = fromNodeHeaders(request.headers);
+    const authRequest = new Request(url, {
+      method: request.method,
+      headers,
+      ...(request.body ? { body: JSON.stringify(request.body) } : {}),
+    });
+    const response = await auth.handler(authRequest);
+    reply.status(response.status);
+    response.headers.forEach((value, key) => reply.header(key, value));
+    return reply.send(response.body ? await response.text() : null);
+  },
+});
 app.register(fastifyRateLimit, {
   global: true,
   max: 100,

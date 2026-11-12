@@ -26,7 +26,7 @@ export async function createCredential(
       serviceUrl,
       notes,
       favorite,
-      userId: request.user.sub,
+      userId: request.user.id,
     });
     return reply
       .status(201)

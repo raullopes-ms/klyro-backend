@@ -7,7 +7,7 @@ export async function listCredentials(
 ) {
   const listCredentialsUseCase = makeListCredentialsUseCase();
   const { vaults } = await listCredentialsUseCase.execute({
-    userId: request.user.sub,
+    userId: request.user.id,
   });
 
   return reply.status(200).send({ credentials: vaults });
