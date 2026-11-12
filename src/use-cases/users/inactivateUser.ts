@@ -1,15 +1,17 @@
 import type { UsersRepository } from "@/repositories/users-repository";
 import { AppError } from "@/use-cases/errors/app-error";
 import { ResourceNotFoundError } from "@/use-cases/errors/resource-not-found-error";
+import {
+  toPublicUser,
+  type PublicUser,
+} from "@/use-cases/mappers/to-public-user";
 
 interface InactivateUserUseCaseRequest {
   id: string;
   userId: string;
 }
 interface InactivateUserUseCaseResponse {
-  user: {
-    isActive: boolean;
-  }
+  user: PublicUser;
 }
 export class InactivateUserUseCase {
   constructor(private readonly userRepository: UsersRepository) {}
@@ -22,6 +24,6 @@ export class InactivateUserUseCase {
       throw new ResourceNotFoundError();
     }
     const inactivatedUser = await this.userRepository.inactivateUser(id);
-    return { user: inactivatedUser };
+    return { user: toPublicUser(inactivatedUser) };
   }
 }

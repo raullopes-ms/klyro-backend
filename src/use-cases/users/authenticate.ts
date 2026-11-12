@@ -1,5 +1,10 @@
 import { InvalidCredentialsError } from "@/use-cases/errors/invalid-credentials-error";
+import { InactiveUserError } from "@/use-cases/errors/inactive-user-error";
 import type { UsersRepository } from "@/repositories/users-repository";
+import {
+  toPublicUser,
+  type PublicUser,
+} from "@/use-cases/mappers/to-public-user";
 import { compare } from "bcryptjs";
 
 interface AuthenticateUserUseCaseRequest {
@@ -7,12 +12,7 @@ interface AuthenticateUserUseCaseRequest {
   password: string;
 }
 interface AuthenticateUserUseCaseResponse {
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    isActive: boolean;
-  };
+  user: PublicUser;
 }
 export class AuthenticateUserUseCase {
   constructor(private readonly userRepository: UsersRepository) {}
@@ -28,8 +28,11 @@ export class AuthenticateUserUseCase {
     if (!isPasswordCorrect) {
       throw new InvalidCredentialsError();
     }
+    if (!user.isActive) {
+      throw new InactiveUserError();
+    }
     return {
-      user,
+      user: toPublicUser(user),
     };
   }
 }

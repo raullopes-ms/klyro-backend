@@ -1,12 +1,15 @@
-import type { Vault } from "@/prisma/client";
 import type { VaultsRepository } from "@/repositories/vaults-repository";
+import {
+  toPublicCredential,
+  type PublicCredential,
+} from "../mappers/to-public-credential";
 
 interface ListCredentialsUseCaseRequest {
   userId: string;
 }
 
 interface ListCredentialsUseCaseResponse {
-  vaults: Vault[]
+  vaults: PublicCredential[];
 }
 
 export class ListCredentialsUseCase {
@@ -15,6 +18,6 @@ export class ListCredentialsUseCase {
     userId,
   }: ListCredentialsUseCaseRequest): Promise<ListCredentialsUseCaseResponse> {
     const vaults = await this.vaultsRepository.findManyByUserId(userId);
-    return { vaults };
+    return { vaults: vaults.map(toPublicCredential) };
   }
 }

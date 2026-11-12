@@ -1,15 +1,12 @@
 import type { UsersRepository } from "@/repositories/users-repository";
 import { ResourceNotFoundError } from "../errors/resource-not-found-error";
+import { toPublicUser, type PublicUser } from "../mappers/to-public-user";
 
 interface GetUserProfileUseCaseRequest {
   userId: string;
 }
 interface GetUserProfileUseCaseResponse {
-  user: {
-    name: string;
-    email: string;
-    isActive: boolean;
-  };
+  user: PublicUser;
 }
 export class GetUserProfileUseCase {
   constructor(private readonly userRepository: UsersRepository) {}
@@ -20,6 +17,6 @@ export class GetUserProfileUseCase {
     if (!user) {
       throw new ResourceNotFoundError();
     }
-    return { user };
+    return { user: toPublicUser(user) };
   }
 }

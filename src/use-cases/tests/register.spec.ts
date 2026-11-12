@@ -19,6 +19,7 @@ describe("Register Use Case", () => {
     });
     expect(user.id).toEqual(expect.any(String));
     expect(user.isActive).toEqual(true);
+    expect(user).not.toHaveProperty("passwordHash");
   });
   it("should not be able to register with same email twice", async () => {
     await sut.execute({

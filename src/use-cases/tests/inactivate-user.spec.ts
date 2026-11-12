@@ -22,6 +22,7 @@ describe("Inactivate User Use Case", () => {
       userId: user.id,
     });
     expect(response.user.isActive).toBe(false);
+    expect(response.user).not.toHaveProperty("passwordHash");
     expect(usersRepository.users[0]?.isActive).toBe(false);
   });
   it("should not be able to inactivate another user", async () => {

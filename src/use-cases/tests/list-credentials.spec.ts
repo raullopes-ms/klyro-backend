@@ -32,6 +32,7 @@ describe("List Credentials Use Case", () => {
       serviceName: "GitHub",
       userId: "user-1",
     });
+    expect(vaults[0]).not.toHaveProperty("passwordEncrypted");
   });
 
   it("should return an empty list when the user has no credentials", async () => {
