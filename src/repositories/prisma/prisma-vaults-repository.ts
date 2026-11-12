@@ -17,4 +17,12 @@ export class PrismaVaultsRepository implements VaultsRepository {
   async create(data: Prisma.VaultUncheckedCreateInput) {
     return await prisma.vault.create({ data });
   }
+
+  async deleteByIdAndUserId(id: string, userId: string) {
+    const result = await prisma.vault.deleteMany({
+      where: { id, userId },
+    });
+
+    return result.count > 0;
+  }
 }

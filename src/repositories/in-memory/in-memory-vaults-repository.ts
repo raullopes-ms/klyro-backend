@@ -34,4 +34,17 @@ export class InMemoryVaultsRepository implements VaultsRepository {
     this.vaults.push(vault);
     return vault;
   }
+
+  async deleteByIdAndUserId(id: string, userId: string) {
+    const vaultIndex = this.vaults.findIndex(
+      (vault) => vault.id === id && vault.userId === userId,
+    );
+
+    if (vaultIndex === -1) {
+      return false;
+    }
+
+    this.vaults.splice(vaultIndex, 1);
+    return true;
+  }
 }
