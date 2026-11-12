@@ -30,8 +30,13 @@ público.
 
 Ele é usado nos casos de uso de:
 
+<<<<<<< HEAD
 - consulta do perfil, exposta por `GET /api/me`;
 - inativação da conta, exposta por `PATCH /api/users/:id/inactivate`.
+=======
+- consulta do perfil, exposta por `GET /me`;
+- inativação da conta, exposta por `PATCH /users/:id/inactivate`.
+>>>>>>> c2470461b4faa90210caf6bf9b4dca2734d02797
 
 O Better Auth gerencia cadastro e autenticação por suas próprias rotas. Os
 casos de uso do domínio continuam retornando DTOs seguros para evitar que uma

@@ -351,12 +351,21 @@ Content-Type: application/json
 | `POST` | `/api/auth/sign-in/email` | Não | `200` | Criar sessão |
 | `POST` | `/api/auth/sign-out` | Sim | `200` | Encerrar sessão |
 | `GET` | `/api/auth/get-session` | Sim | `200` | Consultar sessão Better Auth |
+<<<<<<< HEAD
 | `GET` | `/api/me` | Sim | `200` | Consultar perfil |
 | `PATCH` | `/api/users/:id/inactivate` | Sim | `200` | Inativar a própria conta |
 | `POST` | `/api/create-credential` | Sim | `201` | Criar credencial criptografada |
 | `GET` | `/api/credentials` | Sim | `200` | Listar metadados das credenciais |
 | `GET` | `/api/credentials/:id` | Sim | `200` | Revelar uma credencial própria |
 | `DELETE` | `/api/credentials/:id` | Sim | `204` | Excluir uma credencial própria |
+=======
+| `GET` | `/me` | Sim | `200` | Consultar perfil |
+| `PATCH` | `/users/:id/inactivate` | Sim | `200` | Inativar a própria conta |
+| `POST` | `/create-credential` | Sim | `201` | Criar credencial criptografada |
+| `GET` | `/credentials` | Sim | `200` | Listar metadados das credenciais |
+| `GET` | `/credentials/:id` | Sim | `200` | Revelar uma credencial própria |
+| `DELETE` | `/credentials/:id` | Sim | `204` | Excluir uma credencial própria |
+>>>>>>> c2470461b4faa90210caf6bf9b4dca2734d02797
 
 ### Cadastro e login
 
