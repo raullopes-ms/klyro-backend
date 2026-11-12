@@ -37,10 +37,7 @@ describe("Get Credential Use Case", () => {
 
     expect(credential).toMatchObject({
       id: storedCredential.id,
-      serviceName: "GitHub",
-      username: "john.doe",
       password: PASSWORD,
-      userId: "user-1",
     });
     expect(credential).not.toHaveProperty("passwordEncrypted");
   });

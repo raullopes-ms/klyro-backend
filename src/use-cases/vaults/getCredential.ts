@@ -30,7 +30,7 @@ export class GetCredentialUseCase {
     }
     const password = decrypt(vault.passwordEncrypted);
     return {
-      credential: toRevealedCredential(vault, password),
+      credential: toRevealedCredential(vault.id,password),
     };
   }
 }
