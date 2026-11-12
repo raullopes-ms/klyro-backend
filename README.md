@@ -31,7 +31,7 @@ puro ou misturadas entre usuários. Atualmente, a API permite:
 | Runtime | Node.js, TypeScript e ES Modules |
 | HTTP | Fastify 5 |
 | Validação | Zod 4 |
-| Autenticação | `@fastify/jwt` |
+| Autenticação | `@fastify/jwt` e `@fastify/cookie` |
 | Rate limiting | `@fastify/rate-limit` |
 | Persistência | PostgreSQL, Prisma 7 e adapter `pg` |
 | Hash de senha | `bcryptjs` |
@@ -117,8 +117,8 @@ allowlist para construir novos objetos em runtime:
 
 - `toPublicUser` nunca copia `passwordHash`;
 - `toPublicCredential` nunca copia `passwordEncrypted`;
-- `toRevealedCredential` parte do DTO público e acrescenta somente `password`
-  após autorização e descriptografia.
+- `toRevealedCredential` retorna somente `id` e `password` após autorização e
+  descriptografia.
 
 Apenas omitir um campo em um tipo TypeScript não altera o objeto em runtime.
 Por isso, essa fronteira é implementada com objetos novos e protegida por
@@ -161,7 +161,10 @@ testes. Consulte [docs/mappers.md](docs/mappers.md).
 ### Autenticação e contas
 
 - senhas de usuários são persistidas como hashes bcrypt;
-- JWTs usam o ID do usuário no claim `sub` e expiram em 10 minutos;
+- access JWTs usam o ID do usuário no claim `sub`, possuem
+  `tokenType: "access"` e expiram em 10 minutos;
+- refresh JWTs possuem `tokenType: "refresh"`, `jti`, `sessionId`, expiram em 7
+  dias e usam um segredo diferente;
 - rotas privadas exigem `Authorization: Bearer <token>`;
 - contas inativas não conseguem realizar novos logins;
 - o rate limit global atual é de 100 requisições por minuto.
@@ -191,6 +194,12 @@ operação, sem devolver dados parciais ou o ciphertext.
 - ID inexistente e credencial de outro usuário retornam o mesmo erro `404`;
 - a resposta de revelação inclui `Cache-Control: no-store`;
 - `passwordHash` e `passwordEncrypted` nunca fazem parte dos DTOs públicos.
+
+Refresh tokens são armazenados somente como hash SHA-256. Cada login cria uma
+sessão, cada refresh rotaciona o token em transação e a reutilização de um token
+substituído revoga toda a família. O token bruto fica apenas em cookie
+`HttpOnly`, `SameSite=Strict`, limitado a `/token`; `Secure` é habilitado em
+produção. Consulte [docs/refresh-tokens.md](docs/refresh-tokens.md).
 
 ## Requisitos
 
@@ -241,7 +250,8 @@ As chaves aceitas são definidas em `.env.example` e validadas na inicializaçã
 NODE_ENV=dev
 PORT=3333
 DATABASE_URL="postgresql://user:password@localhost:5432/klyro?schema=public"
-JWT_SECRET="substitua-por-um-segredo-forte"
+JWT_SECRET="access-token-secret-change-me-at-least-32-chars"
+REFRESH_TOKEN_SECRET="refresh-token-secret-change-me-at-least-32-chars"
 ENCRYPTION_KEY="chave-de-32-bytes-em-base64"
 ```
 
@@ -250,7 +260,8 @@ ENCRYPTION_KEY="chave-de-32-bytes-em-base64"
 | `NODE_ENV` | Um de `dev`, `test` ou `production` |
 | `PORT` | Porta HTTP; o padrão validado é `3333` |
 | `DATABASE_URL` | URL de conexão PostgreSQL, incluindo schema quando necessário |
-| `JWT_SECRET` | Segredo usado para assinar e validar JWTs |
+| `JWT_SECRET` | Segredo de pelo menos 32 caracteres para access tokens |
+| `REFRESH_TOKEN_SECRET` | Segredo distinto, de pelo menos 32 caracteres, para refresh tokens |
 | `ENCRYPTION_KEY` | Exatamente 32 bytes codificados em base64 |
 
 Gere uma chave de criptografia localmente:
@@ -265,10 +276,12 @@ indecifráveis.
 
 ## PostgreSQL e Prisma
 
-O schema define duas entidades:
+O schema define quatro entidades:
 
 - `User`: perfil, e-mail único, hash da senha e estado ativo;
 - `Vault`: metadados da credencial, senha criptografada e relação com `User`.
+- `RefreshSession`: família de refresh tokens de um login;
+- `RefreshToken`: `jti`, hash, expiração e estado de rotação/revogação.
 
 Comandos usuais:
 
@@ -318,6 +331,8 @@ Content-Type: application/json
 | --- | --- | :---: | ---: | --- |
 | `POST` | `/register` | Não | `201` | Cadastrar usuário |
 | `POST` | `/authenticate` | Não | `200` | Obter JWT |
+| `PATCH` | `/token/refresh` | Cookie | `200` | Rotacionar refresh e access tokens |
+| `DELETE` | `/token/logout` | Cookie | `204` | Revogar sessão e remover cookie |
 | `GET` | `/me` | Sim | `200` | Consultar perfil |
 | `PATCH` | `/users/:id/inactivate` | Sim | `200` | Inativar a própria conta |
 | `POST` | `/create-credential` | Sim | `201` | Criar credencial criptografada |
@@ -360,8 +375,40 @@ O contrato atual retorna o token como string JSON:
 "<token-jwt>"
 ```
 
+O refresh token não aparece no corpo. Ele é enviado em cookie HTTP-only com
+escopo `/token`.
+
 Credenciais inválidas retornam `401`. Uma conta inativa com senha válida
 retorna `403` com `Usuário inativado`.
+
+### Renovação de tokens
+
+```http
+PATCH /token/refresh
+Cookie: refreshToken=<refresh-token>
+```
+
+Resposta `200`:
+
+```json
+{
+  "token": "<novo-access-token>"
+}
+```
+
+O refresh token é rotacionado no cookie. Token ausente, inválido, expirado,
+revogado, reutilizado, de finalidade errada ou associado a usuário inativo
+retorna o mesmo `401 Unauthorized`. Um replay revoga toda a sessão.
+
+### Logout
+
+```http
+DELETE /token/logout
+Cookie: refreshToken=<refresh-token>
+```
+
+Sempre retorna `204 No Content` e remove o cookie. Quando o token é válido, a
+sessão inteira é revogada. A operação é idempotente.
 
 ### Perfil autenticado
 
@@ -457,14 +504,6 @@ GET /credentials/credential_id
 {
   "credential": {
     "id": "credential_id",
-    "serviceName": "GitHub",
-    "username": "ada",
-    "serviceUrl": "https://github.com",
-    "notes": "Conta pessoal",
-    "favorite": true,
-    "userId": "user_id",
-    "createdAt": "2026-01-01T12:00:00.000Z",
-    "updatedAt": "2026-01-01T12:00:00.000Z",
     "password": "senha-do-servico"
   }
 }
@@ -505,28 +544,32 @@ A lista de erros está em [docs/errors.md](docs/errors.md).
 
 ## Testes
 
-A suíte atual contém 41 testes unitários em 9 arquivos. Ela cobre casos de uso,
-criptografia, ownership, conta inativa, DTOs públicos e operações de credencial.
+A suíte atual contém 54 testes em 11 arquivos. Ela cobre casos de uso,
+criptografia, ownership, conta inativa, DTOs públicos, sessões de refresh,
+rotação/replay, cookies, fronteiras HTTP e operações de credencial.
 
 ```bash
 npm test
 npx tsc --noEmit
 ```
 
-Os casos de uso usam repositórios em memória nos testes. Ainda não existem
-testes HTTP com `app.inject`, testes de integração com PostgreSQL ou testes
-end-to-end; portanto, o número acima não representa cobertura total do sistema.
+Os casos de uso usam repositórios em memória e as fronteiras de autenticação
+possuem testes HTTP com `app.inject`. Ainda não existem testes de integração com
+PostgreSQL ou testes end-to-end; portanto, o número acima não representa
+cobertura total do sistema.
 
 ## Documentação adicional
 
 - [Erros da aplicação](docs/errors.md)
 - [Mapeadores públicos e segurança de serialização](docs/mappers.md)
+- [Refresh tokens, rotação e replay](docs/refresh-tokens.md)
 
 ## Limitações e próximos passos
 
 - corrigir o pipeline de build/start e a resolução dos aliases no artefato;
-- adicionar refresh tokens, revogação e/ou sessão persistente;
-- invalidar imediatamente tokens já emitidos quando uma conta for inativada;
+- invalidar access tokens já emitidos antes do limite atual de 10 minutos;
+- adicionar gerenciamento de sessões por dispositivo e limpeza de registros
+  expirados;
 - revisar o custo do bcrypt e a política de senhas;
 - implementar rotação segura de `ENCRYPTION_KEY` e migração de ciphertexts;
 - adicionar paginação à listagem e índice para consultas por `Vault.userId`;

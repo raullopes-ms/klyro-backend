@@ -1,19 +1,16 @@
 import fastify from "fastify";
-import { fastifyJwt } from "@fastify/jwt";
+import fastifyCookie from "@fastify/cookie";
 import { fastifyRateLimit } from "@fastify/rate-limit";
 import { ZodError, z } from "zod";
 import { env } from "./env";
 import { AppError } from "./use-cases/errors/app-error";
 import { usersRoutes } from "./http/controllers/users/routes";
 import { vaultsRoutes } from "./http/controllers/vaults/routes";
+import { registerAuthTokenPlugins } from "./lib/auth-tokens";
 
 export const app = fastify();
-app.register(fastifyJwt, {
-  secret: env.JWT_SECRET,
-  sign: {
-    expiresIn: "10m",
-  },
-});
+app.register(fastifyCookie);
+registerAuthTokenPlugins(app);
 app.register(fastifyRateLimit, {
   global: true,
   max: 100,

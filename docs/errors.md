@@ -14,6 +14,7 @@ O handler global do Fastify usa `statusCode` para definir o status da resposta.
 | `AppError` | 400 | Erros de regra de negócio sem uma categoria mais específica. É possível informar uma mensagem e, opcionalmente, outro status. | Definida na criação |
 | `InvalidCredentialsError` | 401 | Credenciais inválidas durante a autenticação. | `Invalid credentials` |
 | `InactiveUserError` | 403 | Tentativa de autenticação com uma conta inativada. | `Usuário inativado` |
+| `RefreshTokenUnauthorizedError` | 401 | Refresh token ausente, inválido, expirado, revogado, reutilizado ou associado a conta inativa. | `Unauthorized` |
 | `UnauthorizedError` | 401 | Usuário não autorizado a executar uma operação ou acessar um recurso. | `Unauthorized` |
 | `ResourceNotFoundError` | 404 | Recurso solicitado não encontrado. | `Resource not found.` |
 | `UsersAlreadyExistsError` | 409 | Tentativa de criar um usuário com e-mail já cadastrado. | `User already exists` |

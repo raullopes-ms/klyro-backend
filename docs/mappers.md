@@ -50,10 +50,10 @@ O campo `passwordEncrypted` não é copiado e, portanto, não é retornado por
 
 O mapeador
 [`toRevealedCredential`](../src/use-cases/mappers/to-revealed-credential.ts)
-reutiliza `toPublicCredential` e acrescenta somente a senha já descriptografada
-no campo `password`. Ele é usado por `GET /credentials/:id`, que revela uma
-credencial específica apenas depois de confirmar simultaneamente seu ID e o
-proprietário autenticado.
+constrói uma resposta mínima contendo somente `id` e a senha já
+descriptografada no campo `password`. Ele é usado por `GET /credentials/:id`,
+que revela uma credencial específica apenas depois de confirmar
+simultaneamente seu ID e o proprietário autenticado.
 
 Mesmo nessa visão, `passwordEncrypted` nunca faz parte do objeto público. A
 descriptografia ocorre no caso de uso após a validação de propriedade, e uma
@@ -92,13 +92,14 @@ Para coleções, o mesmo princípio é aplicado a cada entidade:
 return { vaults: vaults.map(toPublicCredential) };
 ```
 
-Uma credencial revelada parte do DTO público já filtrado:
+Uma credencial revelada recebe apenas o ID autorizado e a senha
+descriptografada:
 
 ```ts
 const password = decrypt(vault.passwordEncrypted);
 
 return {
-  credential: toRevealedCredential(vault, password),
+  credential: toRevealedCredential(vault.id, password),
 };
 ```
 

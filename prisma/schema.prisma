@@ -13,14 +13,15 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  vaults       Vault[]
+  id              String           @id @default(cuid())
+  name            String
+  email           String           @unique
+  passwordHash    String
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  vaults          Vault[]
+  refreshSessions RefreshSession[]
 }
 
 model Vault {
@@ -35,4 +36,31 @@ model Vault {
   user              User     @relation(fields: [userId], references: [id])
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+model RefreshSession {
+  id        String         @id
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  revokedAt DateTime?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  tokens    RefreshToken[]
+
+  @@index([userId])
+}
+
+model RefreshToken {
+  id            String         @id @default(cuid())
+  jti           String         @unique
+  tokenHash     String         @unique
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  replacedByJti String?
+  sessionId     String
+  session       RefreshSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt     DateTime       @default(now())
+
+  @@index([sessionId])
+  @@index([expiresAt])
 }
