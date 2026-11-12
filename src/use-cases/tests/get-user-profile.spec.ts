@@ -15,13 +15,11 @@ describe("Get User Profile Use Case", () => {
     const createdUser = await usersRepository.create({
       name: "John Doe",
       email: "john.doe@example.com",
-      passwordHash: "password-hash",
     });
     const { user } = await sut.execute({
       userId: createdUser.id,
     });
     expect(user.name).toEqual("John Doe");
-    expect(user).not.toHaveProperty("passwordHash");
   });
   it("should not be able to get user profile with wrong id", async () => {
     await expect(() =>

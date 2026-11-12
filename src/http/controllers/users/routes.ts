@@ -1,22 +1,14 @@
 import type { FastifyInstance } from "fastify";
-import { register } from "./register";
-import { authenticate } from "./authenticate";
-import { verifyJwt } from "@/http/middlewares/verify-jwt";
+import { verifySession } from "@/http/middlewares/verify-session";
 import { getUserProfile } from "./get-user-profile";
 import { inactivateUser } from "./inactivate-user";
-import { refresh } from "./refresh";
-import { logout } from "./logout";
 
 export async function usersRoutes(app: FastifyInstance) {
-  app.post("/register", register);
-  app.post("/authenticate", authenticate);
-  app.patch("/token/refresh", refresh);
-  app.delete("/token/logout", logout);
   /** Authenticated */
-  app.get("/me", { onRequest: [verifyJwt] }, getUserProfile);
+  app.get("/me", { onRequest: [verifySession] }, getUserProfile);
   app.patch(
     "/users/:id/inactivate",
-    { onRequest: [verifyJwt] },
+    { onRequest: [verifySession] },
     inactivateUser,
   );
 }

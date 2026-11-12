@@ -8,14 +8,15 @@ engano nas respostas da API.
 ## Por que não retornar entidades Prisma diretamente
 
 As entidades `User` e `Vault` representam todos os campos armazenados no banco.
-Isso inclui `passwordHash` no usuário e `passwordEncrypted` na credencial. Ao
-retornar uma dessas entidades diretamente, o Fastify serializa também esses
-campos, mesmo quando a interface de resposta do caso de uso declara apenas um
+Isso inclui `passwordEncrypted` na credencial. As credenciais de autenticação
+ficam em `Account` e não devem ser serializadas nas respostas da API. Ao
+retornar uma entidade diretamente, o Fastify pode serializar campos internos,
+mesmo quando a interface de resposta do caso de uso declara apenas um
 subconjunto deles.
 
 Os tipos TypeScript são removidos durante a compilação. Portanto, anotar uma
-entidade como um tipo sem `passwordHash` ou `passwordEncrypted` não altera o
-objeto em runtime. A remoção precisa ocorrer na construção do valor retornado.
+entidade como um tipo sem `passwordEncrypted` não altera o objeto em runtime. A
+remoção precisa ocorrer na construção do valor retornado.
 
 ## Mapeadores disponíveis
 
@@ -24,19 +25,17 @@ objeto em runtime. A remoção precisa ocorrer na construção do valor retornad
 O mapeador
 [`toPublicUser`](../src/use-cases/mappers/to-public-user.ts) recebe uma entidade
 `User` e cria um novo objeto apenas com `id`, `name`, `email`, `isActive`,
-`createdAt` e `updatedAt`. O campo `passwordHash` não é copiado e, por isso, não
-existe no objeto público em runtime.
+`createdAt` e `updatedAt`. Campos de autenticação não fazem parte do DTO
+público.
 
 Ele é usado nos casos de uso de:
 
-- cadastro de usuário;
-- autenticação;
 - consulta do perfil, exposta por `GET /me`;
 - inativação da conta, exposta por `PATCH /users/:id/inactivate`.
 
-O cadastro não envia o usuário no corpo da resposta e a autenticação envia
-somente o token, mas os casos de uso também retornam DTOs seguros para evitar
-que uma mudança futura no controller exponha o hash.
+O Better Auth gerencia cadastro e autenticação por suas próprias rotas. Os
+casos de uso do domínio continuam retornando DTOs seguros para evitar que uma
+mudança futura no controller exponha campos internos.
 
 ### `toPublicCredential`
 
@@ -109,7 +108,6 @@ Os testes dos casos de uso devem verificar o objeto real retornado, não apenas
 seu tipo. Em especial, devem manter as asserções de que:
 
 ```ts
-expect(user).not.toHaveProperty("passwordHash");
 expect(credential).not.toHaveProperty("passwordEncrypted");
 ```
 

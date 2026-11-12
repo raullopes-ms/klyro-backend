@@ -13,7 +13,7 @@ export async function getCredential(
   const getCredentialUseCase = makeGetCredentialUseCase();
   const { credential } = await getCredentialUseCase.execute({
     credentialId: id,
-    userId: request.user.sub,
+    userId: request.user.id,
   });
   return reply
     .header("Cache-Control", "no-store")

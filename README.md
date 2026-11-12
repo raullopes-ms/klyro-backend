@@ -4,11 +4,11 @@ API de um cofre pessoal de credenciais. O Klyro centraliza logins de serviços
 por usuário, protege as senhas armazenadas com criptografia autenticada e
 aplica isolamento de acesso em todas as operações individuais do cofre.
 
-O projeto está em desenvolvimento. A base atual cobre o ciclo completo de
-autenticação com access token, refresh token rotacionável e logout, além de
-perfil, inativação de conta e criação, listagem, revelação e exclusão de
-credenciais. Ainda não deve ser considerada pronta para produção sem os
-ajustes descritos em [Limitações e próximos passos](#limitações-e-próximos-passos).
+O projeto está em desenvolvimento. A base atual cobre o ciclo de autenticação
+com sessões gerenciadas pelo Better Auth, perfil, inativação de conta e
+criação, listagem, revelação e exclusão de credenciais. Ainda não deve ser
+considerada pronta para produção sem os ajustes descritos em
+[Limitações e próximos passos](#limitações-e-próximos-passos).
 
 ## Problema e funcionalidades atuais
 
@@ -16,7 +16,7 @@ O Klyro evita que credenciais de diferentes serviços sejam mantidas em texto
 puro ou misturadas entre usuários. Atualmente, a API permite:
 
 - cadastrar e autenticar usuários;
-- renovar sessões com rotação de refresh token e revogar sessões no logout;
+- criar, consultar e encerrar sessões pelo Better Auth;
 - consultar o perfil autenticado;
 - inativar a própria conta;
 - impedir novos logins de contas inativas;
@@ -35,7 +35,7 @@ puro ou misturadas entre usuários. Atualmente, a API permite:
 | Runtime | Node.js, TypeScript e ES Modules |
 | HTTP | Fastify 5 |
 | Validação | Zod 4 |
-| Autenticação | `@fastify/jwt` e `@fastify/cookie` |
+| Autenticação | Better Auth, sessões HTTP-only e adapter Prisma |
 | Rate limiting | `@fastify/rate-limit` |
 | Persistência | PostgreSQL, Prisma 7 e adapter `pg` |
 | Hash de senha | `bcryptjs` |
@@ -51,7 +51,8 @@ persistência e factories fazem a composição das implementações concretas.
 
 ```mermaid
 flowchart LR
-    Client[Cliente HTTP] --> Routes[Rotas, JWT e cookies]
+    Client[Cliente HTTP] --> BetterAuth[Better Auth e sessões]
+    BetterAuth --> Routes[Rotas protegidas]
     Routes --> Controllers[Controllers e validação Zod]
     Controllers --> Factories[Factories]
     Factories --> UseCases[Casos de uso]
@@ -119,7 +120,7 @@ explícita e localizada em `src/use-cases/factories`.
 Entidades Prisma não são serializadas diretamente. Os mapeadores usam uma
 allowlist para construir novos objetos em runtime:
 
-- `toPublicUser` nunca copia `passwordHash`;
+- `toPublicUser` retorna somente os campos públicos do usuário;
 - `toPublicCredential` nunca copia `passwordEncrypted`;
 - `toRevealedCredential` retorna somente `id` e `password` após autorização e
   descriptografia.
@@ -136,17 +137,18 @@ testes. Consulte [docs/mappers.md](docs/mappers.md).
 ├── generated/prisma/             # Cliente Prisma gerado (ignorado pelo Git)
 ├── prisma/
 │   ├── migrations/               # Histórico de migrations SQL
-│   └── schema.prisma             # Modelos User e Vault
+│   └── schema.prisma             # Modelos do domínio e do Better Auth
+├── scripts/                      # Scripts operacionais, incluindo migração de contas
 ├── src/
 │   ├── env/                      # Validação das variáveis de ambiente
 │   ├── http/
 │   │   ├── controllers/          # Controllers e registro de rotas
-│   │   └── middlewares/          # Verificação JWT
+│   │   └── middlewares/          # Verificação de sessão
 │   ├── lib/                      # Cliente Prisma e criptografia
 │   ├── repositories/
 │   │   ├── in-memory/            # Implementações para testes
 │   │   └── prisma/               # Implementações PostgreSQL/Prisma
-│   ├── types/                    # Extensões de tipos do Fastify JWT
+│   ├── types/                    # Tipos da sessão autenticada
 │   └── use-cases/
 │       ├── errors/               # Erros de negócio
 │       ├── factories/            # Composição de dependências
@@ -164,13 +166,13 @@ testes. Consulte [docs/mappers.md](docs/mappers.md).
 
 ### Autenticação e contas
 
-- senhas de usuários são persistidas como hashes bcrypt;
-- access JWTs usam o ID do usuário no claim `sub`, possuem
-  `tokenType: "access"` e expiram em 10 minutos;
-- refresh JWTs possuem `tokenType: "refresh"`, `jti`, `sessionId`, expiram em 7
-  dias e usam um segredo diferente;
-- rotas privadas exigem `Authorization: Bearer <token>`;
-- contas inativas não conseguem realizar novos logins;
+- o Better Auth persiste usuários, contas, sessões e verificações no PostgreSQL;
+- login por e-mail e senha é exposto pelo handler `/api/auth/*`;
+- hashes de senha usam bcrypt para manter compatibilidade com as contas atuais;
+- sessões são transportadas por cookies HTTP-only gerenciados pelo Better Auth;
+- sessões expiram por padrão após 7 dias e são atualizadas quando utilizadas;
+- rotas privadas consultam a sessão com `auth.api.getSession`;
+- contas inativas não devem iniciar novas sessões;
 - o rate limit global atual é de 100 requisições por minuto.
 
 ### Criptografia do cofre
@@ -197,17 +199,11 @@ operação, sem devolver dados parciais ou o ciphertext.
 - exclusão filtra atomicamente por `id + userId`;
 - ID inexistente e credencial de outro usuário retornam o mesmo erro `404`;
 - a resposta de revelação inclui `Cache-Control: no-store`;
-- `passwordHash` e `passwordEncrypted` nunca fazem parte dos DTOs públicos.
+- credenciais de autenticação e `passwordEncrypted` nunca fazem parte dos DTOs
+  públicos.
 
-Refresh tokens são armazenados somente como hash SHA-256. Cada login cria uma
-sessão, cada refresh rotaciona o token em transação e a reutilização de um token
-substituído revoga toda a família. O token bruto fica apenas em cookie
-`HttpOnly`, `SameSite=Strict`, limitado a `/token`; `Secure` é habilitado em
-produção. Consulte [docs/refresh-tokens.md](docs/refresh-tokens.md).
-
-O logout é idempotente: remove o cookie mesmo quando o refresh token está
-ausente ou inválido. Quando o token é válido, a sessão correspondente é
-revogada no banco.
+O fluxo ativo usa as tabelas `Session` e `Account` do Better Auth. As tabelas
+antigas de refresh foram removidas do banco e não fazem mais parte do schema.
 
 ## Requisitos
 
@@ -258,8 +254,8 @@ As chaves aceitas são definidas em `.env.example` e validadas na inicializaçã
 NODE_ENV=dev
 PORT=3333
 DATABASE_URL="postgresql://user:password@localhost:5432/klyro?schema=public"
-JWT_SECRET="access-token-secret-change-me-at-least-32-chars"
-REFRESH_TOKEN_SECRET="refresh-token-secret-change-me-at-least-32-chars"
+BETTER_AUTH_URL="http://localhost:3333"
+BETTER_AUTH_SECRET="better-auth-secret-change-me-at-least-32-chars"
 ENCRYPTION_KEY="chave-de-32-bytes-em-base64"
 ```
 
@@ -268,8 +264,8 @@ ENCRYPTION_KEY="chave-de-32-bytes-em-base64"
 | `NODE_ENV` | Um de `dev`, `test` ou `production` |
 | `PORT` | Porta HTTP; o padrão validado é `3333` |
 | `DATABASE_URL` | URL de conexão PostgreSQL, incluindo schema quando necessário |
-| `JWT_SECRET` | Segredo de pelo menos 32 caracteres para access tokens |
-| `REFRESH_TOKEN_SECRET` | Segredo distinto, de pelo menos 32 caracteres, para refresh tokens |
+| `BETTER_AUTH_URL` | URL base confiável para o Better Auth |
+| `BETTER_AUTH_SECRET` | Segredo de pelo menos 32 caracteres para sessões |
 | `ENCRYPTION_KEY` | Exatamente 32 bytes codificados em base64 |
 
 Gere uma chave de criptografia localmente:
@@ -284,12 +280,13 @@ indecifráveis.
 
 ## PostgreSQL e Prisma
 
-O schema define quatro entidades:
+O schema define as entidades do domínio e do Better Auth:
 
-- `User`: perfil, e-mail único, hash da senha e estado ativo;
-- `Vault`: metadados da credencial, senha criptografada e relação com `User`.
-- `RefreshSession`: família de refresh tokens de um login;
-- `RefreshToken`: `jti`, hash, expiração e estado de rotação/revogação.
+- `User`: perfil, e-mail, estado ativo e relações de autenticação;
+- `Vault`: metadados da credencial, senha criptografada e relação com `User`;
+- `Session`: sessões ativas e seus cookies;
+- `Account`: credenciais de e-mail/senha e futuras contas OAuth;
+- `Verification`: tokens de verificação do Better Auth;
 
 Comandos usuais:
 
@@ -303,6 +300,19 @@ npx prisma migrate dev
 # Aplicar migrations existentes em um ambiente implantado
 npx prisma migrate deploy
 ```
+
+A migration `add_better_auth` cria as tabelas necessárias para o Better Auth.
+Em desenvolvimento, aplique as migrations pendentes com:
+
+```bash
+npx prisma migrate dev
+npx prisma generate
+```
+
+As contas existentes precisavam ser migradas para `Account` com
+`providerId: "credential"` antes da remoção do campo legado. Depois que essa
+migração for concluída, novos cadastros e alterações de senha são gerenciados
+diretamente pelo Better Auth.
 
 A URL do datasource é lida de `DATABASE_URL` por `prisma7.config.ts`.
 
@@ -326,21 +336,21 @@ A URL do datasource é lida de `DATABASE_URL` por `prisma7.config.ts`.
 Não há prefixo de versão. Em desenvolvimento, assumindo a porta padrão, a base
 é `http://localhost:3333`.
 
-Rotas privadas exigem:
+Rotas privadas exigem o cookie de sessão HTTP-only emitido pelo Better Auth:
 
 ```http
-Authorization: Bearer <token-jwt>
+Cookie: better-auth.session_token=<session-token>
 Content-Type: application/json
 ```
 
 ### Resumo
 
-| Método | Rota | JWT | Sucesso | Objetivo |
+| Método | Rota | Sessão | Sucesso | Objetivo |
 | --- | --- | :---: | ---: | --- |
-| `POST` | `/register` | Não | `201` | Cadastrar usuário |
-| `POST` | `/authenticate` | Não | `200` | Obter JWT |
-| `PATCH` | `/token/refresh` | Cookie | `200` | Rotacionar refresh e access tokens |
-| `DELETE` | `/token/logout` | Cookie | `204` | Revogar sessão e remover cookie |
+| `POST` | `/api/auth/sign-up/email` | Não | `200` | Cadastrar usuário |
+| `POST` | `/api/auth/sign-in/email` | Não | `200` | Criar sessão |
+| `POST` | `/api/auth/sign-out` | Sim | `200` | Encerrar sessão |
+| `GET` | `/api/auth/get-session` | Sim | `200` | Consultar sessão Better Auth |
 | `GET` | `/me` | Sim | `200` | Consultar perfil |
 | `PATCH` | `/users/:id/inactivate` | Sim | `200` | Inativar a própria conta |
 | `POST` | `/create-credential` | Sim | `201` | Criar credencial criptografada |
@@ -348,10 +358,10 @@ Content-Type: application/json
 | `GET` | `/credentials/:id` | Sim | `200` | Revelar uma credencial própria |
 | `DELETE` | `/credentials/:id` | Sim | `204` | Excluir uma credencial própria |
 
-### Cadastro
+### Cadastro e login
 
 ```http
-POST /register
+POST /api/auth/sign-up/email
 ```
 
 ```json
@@ -362,12 +372,11 @@ POST /register
 }
 ```
 
-Sucesso: `201` sem corpo. E-mail duplicado retorna `409`.
-
-### Autenticação
+O Better Auth cria a sessão e envia o cookie HTTP-only na resposta. Para
+autenticar:
 
 ```http
-POST /authenticate
+POST /api/auth/sign-in/email
 ```
 
 ```json
@@ -377,57 +386,20 @@ POST /authenticate
 }
 ```
 
-O contrato atual retorna o token como string JSON:
-
-```json
-"<token-jwt>"
-```
-
-O refresh token não aparece no corpo. Ele é enviado em cookie HTTP-only com
-escopo `/token`.
-
-Credenciais inválidas retornam `401`. Uma conta inativa com senha válida
-retorna `403` com `Usuário inativado`.
-
 Fluxo recomendado para clientes:
 
-1. enviar as credenciais para `/authenticate`;
-2. guardar o access token somente em memória e enviá-lo como Bearer token;
-3. deixar o cookie HTTP-only ser gerenciado pelo cliente HTTP;
-4. chamar `/token/refresh` quando o access token expirar;
-5. chamar `/token/logout` ao encerrar a sessão.
+1. enviar o cadastro ou login para `/api/auth/*`;
+2. preservar cookies entre requisições (`credentials: "include"` no browser);
+3. usar as rotas privadas com o cookie de sessão;
+4. chamar `/api/auth/sign-out` ao encerrar a sessão.
 
-O access token não é enviado em cookie e não deve ser persistido em
-`localStorage` quando houver uma alternativa mais segura.
+Credenciais inválidas retornam erro do Better Auth. Uma conta inativa não deve
+criar novas sessões.
 
-### Renovação de tokens
-
-```http
-PATCH /token/refresh
-Cookie: refreshToken=<refresh-token>
-```
-
-Resposta `200`:
-
-```json
-{
-  "token": "<novo-access-token>"
-}
-```
-
-O refresh token é rotacionado no cookie. Token ausente, inválido, expirado,
-revogado, reutilizado, de finalidade errada ou associado a usuário inativo
-retorna o mesmo `401 Unauthorized`. Um replay revoga toda a sessão.
-
-### Logout
-
-```http
-DELETE /token/logout
-Cookie: refreshToken=<refresh-token>
-```
-
-Sempre retorna `204 No Content` e remove o cookie. Quando o token é válido, a
-sessão inteira é revogada. A operação é idempotente.
+As requisições para `/api/auth/*` precisam incluir um header `Origin` igual a
+uma origem confiável configurada em `BETTER_AUTH_URL`. Clientes React Native
+devem usar um cookie jar para persistir o cookie HTTP-only; suporte a
+`Authorization: Bearer` não está habilitado nesta configuração.
 
 ### Perfil autenticado
 
@@ -448,7 +420,7 @@ GET /me
 }
 ```
 
-`passwordHash` não é retornado.
+Credenciais da conta não são retornadas.
 
 ### Inativação da conta
 
@@ -456,7 +428,7 @@ GET /me
 PATCH /users/user_id/inactivate
 ```
 
-O ID da rota deve ser o mesmo usuário indicado pelo JWT. A resposta contém o
+O ID da rota deve ser o mesmo usuário indicado pela sessão. A resposta contém o
 DTO público do usuário com `isActive: false`. Novas autenticações ficam
 bloqueadas.
 
@@ -563,30 +535,30 @@ A lista de erros está em [docs/errors.md](docs/errors.md).
 
 ## Testes
 
-A suíte atual contém 54 testes em 11 arquivos. Ela cobre casos de uso,
-criptografia, ownership, conta inativa, DTOs públicos, sessões de refresh,
-rotação/replay, cookies, fronteiras HTTP e operações de credencial.
+A suíte atual contém 41 testes em 9 arquivos. Ela cobre casos de uso,
+criptografia, ownership, conta inativa, DTOs públicos e operações de
+credencial. A integração HTTP do Better Auth ainda precisa de testes
+específicos.
 
 ```bash
 npm test
 npx tsc --noEmit
 ```
 
-Os casos de uso usam repositórios em memória e as fronteiras de autenticação
-possuem testes HTTP com `app.inject`. Ainda não existem testes de integração com
-PostgreSQL ou testes end-to-end; portanto, o número acima não representa
-cobertura total do sistema.
+Os casos de uso usam repositórios em memória. Ainda não existem testes
+específicos do handler Better Auth, testes de integração com PostgreSQL ou
+testes end-to-end; portanto, o número acima não representa cobertura total do
+sistema.
 
 ## Documentação adicional
 
 - [Erros da aplicação](docs/errors.md)
 - [Mapeadores públicos e segurança de serialização](docs/mappers.md)
-- [Refresh tokens, rotação e replay](docs/refresh-tokens.md)
+- [Configuração do Better Auth](https://better-auth.com/docs/integrations/fastify)
 
 ## Limitações e próximos passos
 
 - corrigir o pipeline de build/start e a resolução dos aliases no artefato;
-- invalidar access tokens já emitidos antes do limite atual de 10 minutos;
 - adicionar gerenciamento de sessões por dispositivo e limpeza de registros
   expirados;
 - revisar o custo do bcrypt e a política de senhas;

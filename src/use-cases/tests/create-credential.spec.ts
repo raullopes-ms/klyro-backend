@@ -15,7 +15,6 @@ async function createUser(email = "john.doe@example.com") {
   return usersRepository.create({
     name: "John Doe",
     email,
-    passwordHash: "password-hash",
   });
 }
 

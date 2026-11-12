@@ -15,21 +15,18 @@ describe("Inactivate User Use Case", () => {
     const user = await usersRepository.create({
       name: "John Doe",
       email: "john.doe@example.com",
-      passwordHash: "password-hash",
     });
     const response = await sut.execute({
       id: user.id,
       userId: user.id,
     });
     expect(response.user.isActive).toBe(false);
-    expect(response.user).not.toHaveProperty("passwordHash");
     expect(usersRepository.users[0]?.isActive).toBe(false);
   });
   it("should not be able to inactivate another user", async () => {
     const user = await usersRepository.create({
       name: "John Doe",
       email: "john.doe@example.com",
-      passwordHash: "password-hash",
     });
     await expect(
       sut.execute({

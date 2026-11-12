@@ -13,15 +13,17 @@ datasource db {
 }
 
 model User {
-  id              String           @id @default(cuid())
-  name            String
-  email           String           @unique
-  passwordHash    String
-  isActive        Boolean          @default(true)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  vaults          Vault[]
-  refreshSessions RefreshSession[]
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  vaults        Vault[]
+  sessions      Session[]
+  accounts      Account[]
 }
 
 model Vault {
@@ -38,29 +40,46 @@ model Vault {
   updatedAt         DateTime @updatedAt
 }
 
-model RefreshSession {
-  id        String         @id
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
   userId    String
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  revokedAt DateTime?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  tokens    RefreshToken[]
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
-model RefreshToken {
-  id            String         @id @default(cuid())
-  jti           String         @unique
-  tokenHash     String         @unique
-  expiresAt     DateTime
-  revokedAt     DateTime?
-  replacedByJti String?
-  sessionId     String
-  session       RefreshSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  createdAt     DateTime       @default(now())
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  @@index([sessionId])
-  @@index([expiresAt])
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
 }

@@ -13,7 +13,7 @@ export async function inactivateUser(
   const inactivateUserUseCase = makeInactivateUserUseCase();
   const { user } = await inactivateUserUseCase.execute({
     id,
-    userId: request.user.sub,
+    userId: request.user.id,
   });
   return reply.status(200).send({ user });
 }
