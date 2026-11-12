@@ -30,8 +30,8 @@ público.
 
 Ele é usado nos casos de uso de:
 
-- consulta do perfil, exposta por `GET /me`;
-- inativação da conta, exposta por `PATCH /users/:id/inactivate`.
+- consulta do perfil, exposta por `GET /api/me`;
+- inativação da conta, exposta por `PATCH /api/users/:id/inactivate`.
 
 O Better Auth gerencia cadastro e autenticação por suas próprias rotas. Os
 casos de uso do domínio continuam retornando DTOs seguros para evitar que uma
@@ -43,14 +43,14 @@ O mapeador
 [`toPublicCredential`](../src/use-cases/mappers/to-public-credential.ts) recebe
 uma entidade `Vault` e cria um objeto com os metadados públicos da credencial.
 O campo `passwordEncrypted` não é copiado e, portanto, não é retornado por
-`GET /credentials`.
+`GET /api/credentials`.
 
 ### `toRevealedCredential`
 
 O mapeador
 [`toRevealedCredential`](../src/use-cases/mappers/to-revealed-credential.ts)
 constrói uma resposta mínima contendo somente `id` e a senha já
-descriptografada no campo `password`. Ele é usado por `GET /credentials/:id`,
+descriptografada no campo `password`. Ele é usado por `GET /api/credentials/:id`,
 que revela uma credencial específica apenas depois de confirmar
 simultaneamente seu ID e o proprietário autenticado.
 

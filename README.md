@@ -333,8 +333,8 @@ A URL do datasource é lida de `DATABASE_URL` por `prisma7.config.ts`.
 
 ## API
 
-Não há prefixo de versão. Em desenvolvimento, assumindo a porta padrão, a base
-é `http://localhost:3333`.
+Todas as rotas da API usam o prefixo `/api`. Em desenvolvimento, assumindo a
+porta padrão, a base é `http://localhost:3333/api`.
 
 Rotas privadas exigem o cookie de sessão HTTP-only emitido pelo Better Auth:
 
@@ -351,12 +351,12 @@ Content-Type: application/json
 | `POST` | `/api/auth/sign-in/email` | Não | `200` | Criar sessão |
 | `POST` | `/api/auth/sign-out` | Sim | `200` | Encerrar sessão |
 | `GET` | `/api/auth/get-session` | Sim | `200` | Consultar sessão Better Auth |
-| `GET` | `/me` | Sim | `200` | Consultar perfil |
-| `PATCH` | `/users/:id/inactivate` | Sim | `200` | Inativar a própria conta |
-| `POST` | `/create-credential` | Sim | `201` | Criar credencial criptografada |
-| `GET` | `/credentials` | Sim | `200` | Listar metadados das credenciais |
-| `GET` | `/credentials/:id` | Sim | `200` | Revelar uma credencial própria |
-| `DELETE` | `/credentials/:id` | Sim | `204` | Excluir uma credencial própria |
+| `GET` | `/api/me` | Sim | `200` | Consultar perfil |
+| `PATCH` | `/api/users/:id/inactivate` | Sim | `200` | Inativar a própria conta |
+| `POST` | `/api/create-credential` | Sim | `201` | Criar credencial criptografada |
+| `GET` | `/api/credentials` | Sim | `200` | Listar metadados das credenciais |
+| `GET` | `/api/credentials/:id` | Sim | `200` | Revelar uma credencial própria |
+| `DELETE` | `/api/credentials/:id` | Sim | `204` | Excluir uma credencial própria |
 
 ### Cadastro e login
 
@@ -404,7 +404,7 @@ devem usar um cookie jar para persistir o cookie HTTP-only; suporte a
 ### Perfil autenticado
 
 ```http
-GET /me
+GET /api/me
 ```
 
 ```json
@@ -425,7 +425,7 @@ Credenciais da conta não são retornadas.
 ### Inativação da conta
 
 ```http
-PATCH /users/user_id/inactivate
+PATCH /api/users/user_id/inactivate
 ```
 
 O ID da rota deve ser o mesmo usuário indicado pela sessão. A resposta contém o
@@ -435,7 +435,7 @@ bloqueadas.
 ### Criação de credencial
 
 ```http
-POST /create-credential
+POST /api/create-credential
 ```
 
 ```json
@@ -462,7 +462,7 @@ A senha é criptografada antes da persistência.
 ### Listagem de credenciais
 
 ```http
-GET /credentials
+GET /api/credentials
 ```
 
 ```json
@@ -488,7 +488,7 @@ Nem a senha em texto claro nem `passwordEncrypted` são incluídos.
 ### Revelação de credencial
 
 ```http
-GET /credentials/credential_id
+GET /api/credentials/credential_id
 ```
 
 ```json
@@ -506,7 +506,7 @@ Somente o proprietário recebe a resposta. O endpoint envia
 ### Exclusão de credencial
 
 ```http
-DELETE /credentials/credential_id
+DELETE /api/credentials/credential_id
 ```
 
 Sucesso: `204 No Content`. A operação não retorna a credencial nem qualquer

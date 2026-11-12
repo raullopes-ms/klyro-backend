@@ -38,8 +38,8 @@ app.register(fastifyRateLimit, {
     retryAfter: context.after,
   }),
 });
-app.register(usersRoutes);
-app.register(vaultsRoutes);
+app.register(usersRoutes, { prefix: "/api" });
+app.register(vaultsRoutes, { prefix: "/api" });
 app.setErrorHandler((error, request, reply) => {
   if (env.NODE_ENV !== "production") {
     request.log.error(error);

@@ -14,8 +14,11 @@ export const auth = betterAuth({
   trustedOrigins: [env.BETTER_AUTH_URL, "http://localhost:3333"],
   emailAndPassword: {
     enabled: true,
+    autoSignIn: false, // Disable auto sign-in after registration
     password: {
-      hash: (password) => hash(password, 6),
+      hash: (password) => hash(password, 6
+
+      ),
       verify: ({ hash: passwordHash, password }) =>
         compare(password, passwordHash),
     },
