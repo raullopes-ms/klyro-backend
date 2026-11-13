@@ -6,8 +6,8 @@ aplica isolamento de acesso em todas as operações individuais do cofre.
 
 O projeto está em desenvolvimento. A base atual cobre o ciclo de autenticação
 com sessões gerenciadas pelo Better Auth, perfil, inativação de conta e
-criação, listagem, revelação e exclusão de credenciais. Ainda não deve ser
-considerada pronta para produção sem os ajustes descritos em
+criação, listagem, revelação, atualização e exclusão de credenciais. Ainda não
+deve ser considerada pronta para produção sem os ajustes descritos em
 [Limitações e próximos passos](#limitações-e-próximos-passos).
 
 ## Problema e funcionalidades atuais
@@ -23,6 +23,7 @@ puro ou misturadas entre usuários. Atualmente, a API permite:
 - criar credenciais com a senha criptografada no banco;
 - listar somente os metadados públicos das próprias credenciais;
 - revelar a senha de uma credencial específica, após validar o proprietário;
+- atualizar parcialmente os dados de uma credencial própria;
 - excluir uma credencial do proprietário de forma atômica;
 - limitar requisições globalmente e padronizar erros de validação e negócio;
 - executar regras de negócio com repositórios Prisma em produção e repositórios
@@ -351,21 +352,13 @@ Content-Type: application/json
 | `POST` | `/api/auth/sign-in/email` | Não | `200` | Criar sessão |
 | `POST` | `/api/auth/sign-out` | Sim | `200` | Encerrar sessão |
 | `GET` | `/api/auth/get-session` | Sim | `200` | Consultar sessão Better Auth |
-<<<<<<< HEAD
 | `GET` | `/api/me` | Sim | `200` | Consultar perfil |
 | `PATCH` | `/api/users/:id/inactivate` | Sim | `200` | Inativar a própria conta |
 | `POST` | `/api/create-credential` | Sim | `201` | Criar credencial criptografada |
 | `GET` | `/api/credentials` | Sim | `200` | Listar metadados das credenciais |
 | `GET` | `/api/credentials/:id` | Sim | `200` | Revelar uma credencial própria |
+| `PATCH` | `/api/update-credential/:id` | Sim | `200` | Atualizar uma credencial própria |
 | `DELETE` | `/api/credentials/:id` | Sim | `204` | Excluir uma credencial própria |
-=======
-| `GET` | `/me` | Sim | `200` | Consultar perfil |
-| `PATCH` | `/users/:id/inactivate` | Sim | `200` | Inativar a própria conta |
-| `POST` | `/create-credential` | Sim | `201` | Criar credencial criptografada |
-| `GET` | `/credentials` | Sim | `200` | Listar metadados das credenciais |
-| `GET` | `/credentials/:id` | Sim | `200` | Revelar uma credencial própria |
-| `DELETE` | `/credentials/:id` | Sim | `204` | Excluir uma credencial própria |
->>>>>>> c2470461b4faa90210caf6bf9b4dca2734d02797
 
 ### Cadastro e login
 
@@ -512,6 +505,48 @@ GET /api/credentials/credential_id
 Somente o proprietário recebe a resposta. O endpoint envia
 `Cache-Control: no-store`. `passwordEncrypted` nunca é serializado.
 
+### Atualização de credencial
+
+```http
+PATCH /api/update-credential/credential_id
+```
+
+O corpo aceita qualquer combinação dos campos abaixo. Todos são opcionais, e
+apenas os campos enviados são alterados:
+
+```json
+{
+  "serviceName": "GitHub",
+  "username": "ada",
+  "password": "nova-senha-do-servico",
+  "serviceUrl": "https://github.com",
+  "notes": "Conta pessoal atualizada",
+  "favorite": false
+}
+```
+
+Resposta `200`:
+
+```json
+{
+  "vault": {
+    "id": "credential_id",
+    "serviceName": "GitHub",
+    "username": "ada",
+    "serviceUrl": "https://github.com",
+    "notes": "Conta pessoal atualizada",
+    "favorite": false,
+    "userId": "user_id",
+    "createdAt": "2026-01-01T12:00:00.000Z",
+    "updatedAt": "2026-01-01T12:05:00.000Z"
+  }
+}
+```
+
+Quando `password` é enviada, ela é criptografada antes da persistência. A
+resposta nunca inclui a senha nem `passwordEncrypted`. Uma credencial de outro
+usuário ou inexistente não pode ser atualizada.
+
 ### Exclusão de credencial
 
 ```http
@@ -573,7 +608,6 @@ sistema.
 - revisar o custo do bcrypt e a política de senhas;
 - implementar rotação segura de `ENCRYPTION_KEY` e migração de ciphertexts;
 - adicionar paginação à listagem e índice para consultas por `Vault.userId`;
-- adicionar atualização de credenciais;
 - normalizar e-mails e tratar concorrência de cadastro na constraint única;
 - adicionar OpenAPI, versionamento e contratos de resposta do Fastify;
 - adicionar testes HTTP, de integração e end-to-end;
