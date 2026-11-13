@@ -1,7 +1,9 @@
 import type { UsersRepository } from "@/repositories/users-repository";
 import type { VaultsRepository } from "@/repositories/vaults-repository";
-import { encrypt } from "@/lib/crypto";
+import type { PublicCredential } from "../mappers/to-public-credential";
 import { UnauthorizedError } from "../errors/unauthorized-error";
+import { encrypt } from "@/lib/crypto";
+import { InactiveUserError } from "../errors/inactive-user-error";
 
 interface CreateVaultUseCaseRequest {
   serviceName: string;
@@ -13,15 +15,13 @@ interface CreateVaultUseCaseRequest {
   userId: string;
 }
 interface CreateVaultUseCaseResponse {
-  vault: {
-    id: string;
-  };
+  vault: PublicCredential;
 }
 export class CreateCredentialUseCase {
   constructor(
     private vaultsRepository: VaultsRepository,
     private usersRepository: UsersRepository,
-  ) {}
+  ) { }
   async execute({
     serviceName,
     username,
@@ -35,6 +35,9 @@ export class CreateCredentialUseCase {
     if (!user) {
       throw new UnauthorizedError();
     }
+    if(!user.isActive){
+      throw new InactiveUserError();
+    }
     const vault = await this.vaultsRepository.create({
       serviceName,
       username,
@@ -45,9 +48,7 @@ export class CreateCredentialUseCase {
       userId,
     });
     return {
-      vault: {
-        id: vault.id,
-      },
+      vault,
     };
   }
 }

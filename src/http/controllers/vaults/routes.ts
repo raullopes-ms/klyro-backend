@@ -4,6 +4,7 @@ import { createCredential } from "./create-credential";
 import { listCredentials } from "./list-credentials";
 import { getCredential } from "./get-credential";
 import { deleteCredential } from "./delete-credential";
+import { updateCredential } from "./update-credential";
 
 export async function vaultsRoutes(app: FastifyInstance) {
   app.get("/credentials", { onRequest: [verifySession] }, listCredentials);
@@ -14,4 +15,5 @@ export async function vaultsRoutes(app: FastifyInstance) {
     deleteCredential,
   );
   app.post("/create-credential", { onRequest: [verifySession] }, createCredential);
+  app.patch("/update-credential/:id", { onRequest: [verifySession] }, updateCredential);
 }

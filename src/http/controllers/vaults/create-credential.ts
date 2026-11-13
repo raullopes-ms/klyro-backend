@@ -1,3 +1,4 @@
+import { InactiveUserError } from "@/use-cases/errors/inactive-user-error";
 import { UnauthorizedError } from "@/use-cases/errors/unauthorized-error";
 import { makeCreateCredentialUseCase } from "@/use-cases/factories/make-create-credential-use-case";
 import type { FastifyReply, FastifyRequest } from "fastify";
@@ -34,6 +35,9 @@ export async function createCredential(
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return reply.status(401).send({ message: error.message });
+    }
+    if(error instanceof InactiveUserError){
+      return reply.status(403).send({ message: error.message });
     }
     throw error;
   }

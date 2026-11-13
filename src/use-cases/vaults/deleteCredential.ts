@@ -8,7 +8,6 @@ interface DeleteCredentialUseCaseRequest {
 
 export class DeleteCredentialUseCase {
   constructor(private vaultsRepository: VaultsRepository) {}
-
   async execute({
     credentialId,
     userId,
@@ -17,7 +16,6 @@ export class DeleteCredentialUseCase {
       credentialId,
       userId,
     );
-
     if (!wasDeleted) {
       throw new ResourceNotFoundError();
     }

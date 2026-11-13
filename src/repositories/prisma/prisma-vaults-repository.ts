@@ -25,4 +25,10 @@ export class PrismaVaultsRepository implements VaultsRepository {
 
     return result.count > 0;
   }
+  async update(id: string, userId: string, data: Prisma.VaultUpdateInput) {
+    return await prisma.vault.update({
+      where: { id, userId },
+      data,
+    });
+  }
 }
