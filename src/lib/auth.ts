@@ -14,7 +14,7 @@ export const auth = betterAuth({
   trustedOrigins: [env.BETTER_AUTH_URL, "http://localhost:3333", "klyro://",  "exp://192.168.30.24:8081",],
   emailAndPassword: {
     enabled: true,
-    autoSignIn: false, // Disable auto sign-in after registration
+    autoSignIn: true, // Automatically sign in the user after they sign up
     password: {
       hash: (password) => hash(password, 6
 

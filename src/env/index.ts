@@ -12,12 +12,12 @@ const envSchema = z.object({
         .string()
         .refine((value) => Buffer.from(value, "base64").length === 32, {
             message:
-                "ENCRYPTION_KEY must be 32 bytes in base64. Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
+                "ENCRYPTION_KEY deve ter 32 bytes em base64. Gere uma com: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
         }),
 })
 const _env = envSchema.safeParse(process.env)
 if(!_env.success){
-    console.error("Invalid environment variables", z.treeifyError(_env.error))
-    throw new Error("Invalid environment variables")
+    console.error("Variáveis de ambiente inválidas", z.treeifyError(_env.error))
+    throw new Error("Variáveis de ambiente inválidas")
 }
 export const env = _env.data

@@ -17,6 +17,8 @@ puro ou misturadas entre usuários. Atualmente, a API permite:
 
 - cadastrar e autenticar usuários;
 - criar, consultar e encerrar sessões pelo Better Auth;
+- autenticar clientes Expo/React Native com cookies persistidos em armazenamento
+  seguro pelo plugin `@better-auth/expo`;
 - consultar o perfil autenticado;
 - inativar a própria conta;
 - impedir novos logins de contas inativas;
@@ -36,7 +38,7 @@ puro ou misturadas entre usuários. Atualmente, a API permite:
 | Runtime | Node.js, TypeScript e ES Modules |
 | HTTP | Fastify 5 |
 | Validação | Zod 4 |
-| Autenticação | Better Auth, sessões HTTP-only e adapter Prisma |
+| Autenticação | Better Auth, sessões HTTP-only, adapter Prisma e plugin Expo |
 | Rate limiting | `@fastify/rate-limit` |
 | Persistência | PostgreSQL, Prisma 7 e adapter `pg` |
 | Hash de senha | `bcryptjs` |
@@ -97,10 +99,12 @@ injetam implementações em memória.
 
 ### Contratos e substituição de implementações
 
-As interfaces de repositório definem as operações disponíveis. As versões
-Prisma e in-memory respeitam os mesmos contratos, o que permite testar regras de
-negócio sem banco real. Os contratos ainda usam alguns tipos de entrada gerados
-pelo Prisma; reduzir esse acoplamento é uma evolução possível.
+As interfaces de repositório definem as operações disponíveis. As versões em
+memória permitem testar a maior parte das regras de negócio sem banco real. No
+estado atual, `InMemoryVaultsRepository` ainda não implementa a operação
+`update` adicionada ao contrato; essa pendência também impede a checagem de
+tipos de concluir com sucesso. Os contratos usam alguns tipos de entrada
+gerados pelo Prisma; reduzir esse acoplamento é uma evolução possível.
 
 ### Repository Pattern
 
@@ -139,7 +143,6 @@ testes. Consulte [docs/mappers.md](docs/mappers.md).
 ├── prisma/
 │   ├── migrations/               # Histórico de migrations SQL
 │   └── schema.prisma             # Modelos do domínio e do Better Auth
-├── scripts/                      # Scripts operacionais, incluindo migração de contas
 ├── src/
 │   ├── env/                      # Validação das variáveis de ambiente
 │   ├── http/
@@ -169,8 +172,12 @@ testes. Consulte [docs/mappers.md](docs/mappers.md).
 
 - o Better Auth persiste usuários, contas, sessões e verificações no PostgreSQL;
 - login por e-mail e senha é exposto pelo handler `/api/auth/*`;
-- hashes de senha usam bcrypt para manter compatibilidade com as contas atuais;
+- o cadastro cria uma sessão automaticamente (`autoSignIn: true`);
+- hashes de senha usam bcrypt com custo `6` para manter compatibilidade com as
+  contas atuais;
 - sessões são transportadas por cookies HTTP-only gerenciados pelo Better Auth;
+- o plugin `@better-auth/expo` habilita a integração com clientes Expo nativos e
+  web;
 - sessões expiram por padrão após 7 dias e são atualizadas quando utilizadas;
 - rotas privadas consultam a sessão com `auth.api.getSession`;
 - contas inativas não devem iniciar novas sessões;
@@ -198,7 +205,8 @@ operação, sem devolver dados parciais ou o ciphertext.
 - listagens sempre filtram por `userId`;
 - visualização usa `findByIdAndUserId`;
 - exclusão filtra atomicamente por `id + userId`;
-- ID inexistente e credencial de outro usuário retornam o mesmo erro `404`;
+- na revelação e na exclusão, ID inexistente e credencial de outro usuário
+  retornam o mesmo erro `404`;
 - a resposta de revelação inclui `Cache-Control: no-store`;
 - credenciais de autenticação e `passwordEncrypted` nunca fazem parte dos DTOs
   públicos.
@@ -256,7 +264,7 @@ NODE_ENV=dev
 PORT=3333
 DATABASE_URL="postgresql://user:password@localhost:5432/klyro?schema=public"
 BETTER_AUTH_URL="http://localhost:3333"
-BETTER_AUTH_SECRET="better-auth-secret-change-me-at-least-32-chars"
+BETTER_AUTH_SECRET="gere-um-segredo-com-pelo-menos-32-caracteres"
 ENCRYPTION_KEY="chave-de-32-bytes-em-base64"
 ```
 
@@ -356,7 +364,7 @@ Content-Type: application/json
 | `PATCH` | `/api/users/:id/inactivate` | Sim | `200` | Inativar a própria conta |
 | `POST` | `/api/create-credential` | Sim | `201` | Criar credencial criptografada |
 | `GET` | `/api/credentials` | Sim | `200` | Listar metadados das credenciais |
-| `GET` | `/api/credentials/:id` | Sim | `200` | Revelar uma credencial própria |
+| `GET` | `/api/credential/:id` | Sim | `200` | Revelar uma credencial própria |
 | `PATCH` | `/api/update-credential/:id` | Sim | `200` | Atualizar uma credencial própria |
 | `DELETE` | `/api/credentials/:id` | Sim | `204` | Excluir uma credencial própria |
 
@@ -374,8 +382,8 @@ POST /api/auth/sign-up/email
 }
 ```
 
-O Better Auth cria a sessão e envia o cookie HTTP-only na resposta. Para
-autenticar:
+O Better Auth cria a conta, inicia a sessão automaticamente e envia o cookie
+HTTP-only na resposta. Para autenticar uma conta existente:
 
 ```http
 POST /api/auth/sign-in/email
@@ -398,10 +406,42 @@ Fluxo recomendado para clientes:
 Credenciais inválidas retornam erro do Better Auth. Uma conta inativa não deve
 criar novas sessões.
 
-As requisições para `/api/auth/*` precisam incluir um header `Origin` igual a
-uma origem confiável configurada em `BETTER_AUTH_URL`. Clientes React Native
-devem usar um cookie jar para persistir o cookie HTTP-only; suporte a
-`Authorization: Bearer` não está habilitado nesta configuração.
+As requisições para `/api/auth/*` precisam usar uma origem presente em
+`trustedOrigins`. A configuração atual aceita a URL de `BETTER_AUTH_URL`,
+`http://localhost:3333`, o scheme `klyro://` e o endereço de desenvolvimento
+`exp://192.168.30.24:8081`. Revise essa lista em `src/lib/auth.ts` para cada
+ambiente; o endereço IP de desenvolvimento não é portátil.
+
+### Expo / React Native
+
+O backend registra o plugin de servidor `expo()`. No aplicativo Expo, use o
+plugin cliente `expoClient` com `expo-secure-store`; ele captura os cookies do
+Better Auth, persiste a sessão com segurança e os envia nas chamadas seguintes.
+O scheme do aplicativo deve ser `klyro` para corresponder à origem confiável
+`klyro://` configurada no backend.
+
+```ts
+import { expoClient } from "@better-auth/expo/client";
+import { createAuthClient } from "better-auth/react";
+import * as SecureStore from "expo-secure-store";
+
+export const authClient = createAuthClient({
+  // Em dispositivo físico, use uma URL acessível na rede, não localhost.
+  baseURL: "http://192.168.30.24:3333",
+  plugins: [
+    expoClient({
+      scheme: "klyro",
+      storagePrefix: "klyro",
+      storage: SecureStore,
+    }),
+  ],
+});
+```
+
+O cliente Expo precisa ter `@better-auth/expo`, `better-auth` e
+`expo-secure-store` instalados. O servidor continua validando as rotas privadas
+por meio do cookie de sessão; esta configuração não habilita autenticação
+Bearer.
 
 ### Perfil autenticado
 
@@ -490,7 +530,7 @@ Nem a senha em texto claro nem `passwordEncrypted` são incluídos.
 ### Revelação de credencial
 
 ```http
-GET /api/credentials/credential_id
+GET /api/credential/credential_id
 ```
 
 ```json
@@ -511,8 +551,9 @@ Somente o proprietário recebe a resposta. O endpoint envia
 PATCH /api/update-credential/credential_id
 ```
 
-O corpo aceita qualquer combinação dos campos abaixo. Todos são opcionais, e
-apenas os campos enviados são alterados:
+O corpo é estrito e aceita qualquer combinação dos campos abaixo. Todos são
+opcionais, e apenas os campos enviados são alterados. Campos desconhecidos
+causam erro de validação `400`:
 
 ```json
 {
@@ -545,7 +586,8 @@ Resposta `200`:
 
 Quando `password` é enviada, ela é criptografada antes da persistência. A
 resposta nunca inclui a senha nem `passwordEncrypted`. Uma credencial de outro
-usuário ou inexistente não pode ser atualizada.
+usuário ou inexistente não pode ser atualizada; atualmente, os dois casos
+retornam `401` com `{ "message": "Não autorizado" }`.
 
 ### Exclusão de credencial
 
@@ -571,7 +613,7 @@ Formato de erro de negócio:
 ```json
 {
   "statusCode": 404,
-  "message": "Resource not found."
+  "message": "Recurso não encontrado."
 }
 ```
 
@@ -579,10 +621,10 @@ A lista de erros está em [docs/errors.md](docs/errors.md).
 
 ## Testes
 
-A suíte atual contém 41 testes em 9 arquivos. Ela cobre casos de uso,
-criptografia, ownership, conta inativa, DTOs públicos e operações de
-credencial. A integração HTTP do Better Auth ainda precisa de testes
-específicos.
+A suíte atual contém 35 testes em 7 arquivos. Ela cobre casos de uso,
+criptografia, ownership, conta inativa, DTOs públicos e as operações de criação,
+listagem, revelação e exclusão de credenciais. A atualização de credenciais e a
+integração HTTP do Better Auth/Expo ainda precisam de testes específicos.
 
 ```bash
 npm test
@@ -594,11 +636,16 @@ específicos do handler Better Auth, testes de integração com PostgreSQL ou
 testes end-to-end; portanto, o número acima não representa cobertura total do
 sistema.
 
+No estado atual, `npm test` passa, mas `npx tsc --noEmit` falha porque
+`InMemoryVaultsRepository` ainda não implementa o método `update` exigido por
+`VaultsRepository`.
+
 ## Documentação adicional
 
 - [Erros da aplicação](docs/errors.md)
 - [Mapeadores públicos e segurança de serialização](docs/mappers.md)
 - [Configuração do Better Auth](https://better-auth.com/docs/integrations/fastify)
+- [Integração do Better Auth com Expo](https://www.better-auth.com/docs/integrations/expo)
 
 ## Limitações e próximos passos
 
@@ -611,6 +658,8 @@ sistema.
 - normalizar e-mails e tratar concorrência de cadastro na constraint única;
 - adicionar OpenAPI, versionamento e contratos de resposta do Fastify;
 - adicionar testes HTTP, de integração e end-to-end;
+- implementar `update` no repositório em memória e adicionar testes para a
+  atualização de credenciais;
 - adicionar health checks, logging estruturado e observabilidade;
 - preparar configuração de deploy e rate limit compartilhado para múltiplas
   instâncias.

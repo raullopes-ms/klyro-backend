@@ -12,12 +12,11 @@ O handler global do Fastify usa `statusCode` para definir o status da resposta.
 | Classe | Status HTTP | Quando usar | Mensagem padrão |
 | --- | ---: | --- | --- |
 | `AppError` | 400 | Erros de regra de negócio sem uma categoria mais específica. É possível informar uma mensagem e, opcionalmente, outro status. | Definida na criação |
-| `InvalidCredentialsError` | 401 | Credenciais inválidas durante a autenticação. | `Invalid credentials` |
+| `InvalidCredentialsError` | 401 | Credenciais inválidas durante a autenticação. | `Credenciais inválidas` |
 | `InactiveUserError` | 403 | Tentativa de autenticação com uma conta inativada. | `Usuário inativado` |
-| `RefreshTokenUnauthorizedError` | 401 | Refresh token ausente, inválido, expirado, revogado, reutilizado ou associado a conta inativa. | `Unauthorized` |
-| `UnauthorizedError` | 401 | Usuário não autorizado a executar uma operação ou acessar um recurso. | `Unauthorized` |
-| `ResourceNotFoundError` | 404 | Recurso solicitado não encontrado. | `Resource not found.` |
-| `UsersAlreadyExistsError` | 409 | Tentativa de criar um usuário com e-mail já cadastrado. | `User already exists` |
+| `UnauthorizedError` | 401 | Usuário não autorizado a executar uma operação ou acessar um recurso. | `Não autorizado` |
+| `ResourceNotFoundError` | 404 | Recurso solicitado não encontrado. | `Recurso não encontrado.` |
+| `UsersAlreadyExistsError` | 409 | Tentativa de criar um usuário com e-mail já cadastrado. | `Usuário já existe` |
 
 ## Como usar
 
@@ -36,9 +35,10 @@ As respostas de erro de negócio seguem este formato:
 ```json
 {
   "statusCode": 404,
-  "message": "Resource not found."
+  "message": "Recurso não encontrado."
 }
 ```
 
-Erros de validação do Zod continuam retornando `400` com `message` e `issues`.
+Erros de validação do Zod retornam `400` com `message: "Erro de validação"` e
+`issues`.
 Erros inesperados continuam retornando `500` sem expor detalhes internos.

@@ -43,7 +43,7 @@ describe("Inactivate User Use Case", () => {
       }),
     ).rejects.toMatchObject({
       statusCode: 404,
-      message: "Resource not found.",
+      message: "Recurso não encontrado.",
     });
   });
 });

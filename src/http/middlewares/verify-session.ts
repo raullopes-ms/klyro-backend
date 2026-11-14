@@ -11,7 +11,7 @@ export async function verifySession(
   });
 
   if (!session) {
-    return reply.status(401).send({ message: "Unauthorized." });
+    return reply.status(401).send({ message: "Não autorizado." });
   }
 
   request.user = { id: session.user.id };

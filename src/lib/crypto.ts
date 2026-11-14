@@ -81,7 +81,7 @@ export function generateEncryptionKey(): string {
  */
 export function parseEncryptionKey(rawKey: string): Buffer {
   if (!rawKey) {
-    throw new InvalidEncryptionKeyError("Encryption key is missing");
+    throw new InvalidEncryptionKeyError("A chave de criptografia está ausente");
   }
 
   const isHex = /^[0-9a-f]+$/i.test(rawKey) && rawKey.length === KEY_BYTES * 2;
@@ -89,8 +89,8 @@ export function parseEncryptionKey(rawKey: string): Buffer {
 
   if (key.length !== KEY_BYTES) {
     throw new InvalidEncryptionKeyError(
-      `Encryption key must be ${KEY_BYTES} bytes (got ${key.length}). ` +
-        "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
+      `A chave de criptografia deve ter ${KEY_BYTES} bytes (recebidos ${key.length}). ` +
+        "Gere uma com: node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
     );
   }
 
@@ -107,7 +107,7 @@ function resolveKey(key: CryptoOptions["key"]): Buffer {
   if (key) {
     if (key.length !== KEY_BYTES) {
       throw new InvalidEncryptionKeyError(
-        `Encryption key must be ${KEY_BYTES} bytes (got ${key.length})`,
+        `A chave de criptografia deve ter ${KEY_BYTES} bytes (recebidos ${key.length})`,
       );
     }
     return key;
@@ -125,11 +125,11 @@ function decodePart(value: string, expectedBytes?: number): Buffer {
   const decoded = Buffer.from(value, "base64url");
 
   if (decoded.length === 0 && value.length > 0) {
-    throw new DecryptionError("Malformed encrypted payload");
+    throw new DecryptionError("Payload criptografado malformado");
   }
 
   if (expectedBytes !== undefined && decoded.length !== expectedBytes) {
-    throw new DecryptionError("Malformed encrypted payload");
+    throw new DecryptionError("Payload criptografado malformado");
   }
 
   return decoded;
@@ -142,7 +142,7 @@ function decodePart(value: string, expectedBytes?: number): Buffer {
  */
 export function encrypt(plainText: string, options: CryptoOptions = {}): string {
   if (typeof plainText !== "string") {
-    throw new EncryptionError("Only strings can be encrypted");
+    throw new EncryptionError("Apenas textos podem ser criptografados");
   }
 
   const key = resolveKey(options.key);
@@ -177,13 +177,13 @@ export function encrypt(plainText: string, options: CryptoOptions = {}): string 
  */
 export function decrypt(payload: string, options: CryptoOptions = {}): string {
   if (typeof payload !== "string" || payload.length === 0) {
-    throw new DecryptionError("Malformed encrypted payload");
+    throw new DecryptionError("Payload criptografado malformado");
   }
 
   const parts = payload.split(SEPARATOR);
 
   if (parts.length !== 4) {
-    throw new DecryptionError("Malformed encrypted payload");
+    throw new DecryptionError("Payload criptografado malformado");
   }
 
   const [version, rawIv, rawAuthTag, rawCipherText] = parts as [
@@ -194,7 +194,7 @@ export function decrypt(payload: string, options: CryptoOptions = {}): string {
   ];
 
   if (version !== VERSION) {
-    throw new DecryptionError(`Unsupported payload version: ${version}`);
+    throw new DecryptionError(`Versão de payload não suportada: ${version}`);
   }
 
   const key = resolveKey(options.key);
@@ -219,7 +219,7 @@ export function decrypt(payload: string, options: CryptoOptions = {}): string {
   } catch {
     // Mensagem genérica de propósito: não revela se o problema foi a chave,
     // o aad ou o conteúdo adulterado.
-    throw new DecryptionError("Unable to decrypt payload");
+    throw new DecryptionError("Não foi possível descriptografar o payload");
   }
 }
 

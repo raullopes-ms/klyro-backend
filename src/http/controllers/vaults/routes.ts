@@ -8,7 +8,7 @@ import { updateCredential } from "./update-credential";
 
 export async function vaultsRoutes(app: FastifyInstance) {
   app.get("/credentials", { onRequest: [verifySession] }, listCredentials);
-  app.get("/credentials/:id", { onRequest: [verifySession] }, getCredential);
+  app.get("/credential/:id", { onRequest: [verifySession] }, getCredential);
   app.delete(
     "/credentials/:id",
     { onRequest: [verifySession] },
